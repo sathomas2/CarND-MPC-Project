@@ -116,16 +116,19 @@ int main() {
           }
       
           // Calculate cross-track and orientation erros. Vehicle coordinates are now [0,0]
-          double cte = polyeval(coeffs, 0.0);
-          double epsi = steer_angle - atan(coeffs[1]);
+          double lag_x = 0.1*v*cos(steer_angle);
+          double lag_y = 0.1*v*sin(steer_angle);
+          double cte = polyeval(coeffs, lag_x) - lag_y;
+          double epsi = steer_angle - atan(coeffs[1] + 2*coeffs[2]*lag_x);
           cout << "CTE " << cte << endl;
           cout << "EPSI " << epsi << "\n" << endl;
-          
+          // reference velocity, based on CTE, so slows down on turns and when it veers from the waypoints
+          double ref_v = 50;
           
           Eigen::VectorXd state(6);
-          state << 0.0, 0.0, steer_angle, v, cte, epsi;
+          state << lag_x, lag_y, steer_angle, v, cte, epsi;
           vector<double> actuators;
-          mpc.Solve(state, coeffs);
+          mpc.Solve(state, coeffs, ref_v);
           
           
           json msgJson;
@@ -155,7 +158,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          //this_thread::sleep_for(chrono::milliseconds(100));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

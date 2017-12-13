@@ -21,9 +21,6 @@ double dt = 0.05;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-// Velocity goal
-double ref_v = 50;
-
 // State and actuator variables are stored in a single vector, so to make life
 // easier establish when each one starts
 size_t x_start = 0;
@@ -40,7 +37,12 @@ class FG_eval {
  public:
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
-  FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
+  // Velocity goal
+  double ref_v;
+  FG_eval(Eigen::VectorXd coeffs, double ref_v) {
+    this->coeffs = coeffs;
+    this->ref_v = ref_v;
+  }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
@@ -53,11 +55,11 @@ class FG_eval {
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
-    fg[0] += 5*CppAD::pow(vars[cte_start], 2);
+    fg[0] += 10*CppAD::pow(vars[cte_start], 2);
     // Squared heading error
-    fg[0] += 200*CppAD::pow(vars[epsi_start], 2);
+    fg[0] += 1000*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
-    fg[0] += 0.1*CppAD::pow(vars[v_start] - ref_v, 2);
+    fg[0] += 0.05*CppAD::pow(vars[v_start] - ref_v, 2);
     
     // Initialize constraints. Add 1 to each of the starting indices because cost is at index 0.
     fg[1 + x_start] = vars[x_start];
@@ -91,13 +93,13 @@ class FG_eval {
       
       // Cost function
       // First the ones above for rest of timestamps.
-      fg[0] += 5*CppAD::pow(cte1, 2);
-      fg[0] += 200*CppAD::pow(epsi1, 2);
-      fg[0] += 0.1*CppAD::pow(v1 - ref_v, 2);
-      //fg[0] += 50*CppAD::pow(v1 - v0, 2);
-      // Squared delta and squared acceleration so vehicle doesn't turn or speed up too aggressively
-      //fg[0] += CppAD::pow(delta, 2);
-      fg[0] += 0.15*CppAD::pow(a, 2);
+      fg[0] += 10*CppAD::pow(cte1, 2);
+      fg[0] += 1000*CppAD::pow(epsi1, 2);
+      fg[0] += 0.05*CppAD::pow(v1 - ref_v, 2);
+      // Squared delta CTE to combat oscillation
+      fg[0] += 200*CppAD::pow(cte1 - cte0, 2);
+      // Squared acceleration so vehicle doesn't speed up too aggressively
+      fg[0] += 0.1*CppAD::pow(a, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
       // make control decisions consistent.
       if (t<N-1) {
@@ -123,7 +125,7 @@ class FG_eval {
 MPC::MPC() {}
 MPC::~MPC() {}
 
-void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   typedef CPPAD_TESTVECTOR(double) Dvector;
   // Break out state for readability
   double x = state[0];
@@ -192,7 +194,7 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   constraints_upperbound[epsi_start] = epsi;
   
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs);
+  FG_eval fg_eval(coeffs, ref_v);
   
   // options for IPOPT solver
   std::string options;
@@ -226,16 +228,13 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   std::cout << "Cost " << cost << std::endl;
 
   // Set current steer_angle and throttle
-  steer_angle = solution.x[delta_start];
-  throttle = solution.x[a_start];
-  mpc_psi = solution.x[psi_start + 1];
-  mpc_v = solution.x[v_start + 1];
-  mpc_cte = solution.x[cte_start + 1];
-  mpc_epsi = solution.x[epsi_start + 1];
+  steer_angle = solution.x[delta_start+1];//0.3*solution.x[delta_start] + 0.7*solution.x[delta_start+1];
+  throttle = solution.x[a_start+1];//0.3*solution.x[a_start] + 0.7*solution.x[a_start+1];
+  
   //clear old ones, then set x and y predictions to plot within simulator
   mpc_ptsx.clear();
   mpc_ptsy.clear();
-  for (int i=1; i<N; ++i) {
+  for (int i=2; i<N-2; ++i) {
     mpc_ptsx.push_back(solution.x[x_start + i]);
     mpc_ptsy.push_back(solution.x[y_start + i]);
   }
