@@ -6,7 +6,7 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 50;
+size_t N = 25;
 double dt = 0.05;
 
 // This value assumes the model presented in the classroom is used.
@@ -22,7 +22,7 @@ double dt = 0.05;
 const double Lf = 2.67;
 
 // Velocity goal
-double ref_v = 20;
+double ref_v = 50;
 
 // State and actuator variables are stored in a single vector, so to make life
 // easier establish when each one starts
@@ -53,9 +53,9 @@ class FG_eval {
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
-    fg[0] += CppAD::pow(vars[cte_start], 2);
+    fg[0] += 5*CppAD::pow(vars[cte_start], 2);
     // Squared heading error
-    fg[0] += CppAD::pow(vars[epsi_start], 2);
+    fg[0] += 200*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
     fg[0] += 0.1*CppAD::pow(vars[v_start] - ref_v, 2);
     
@@ -91,19 +91,19 @@ class FG_eval {
       
       // Cost function
       // First the ones above for rest of timestamps.
-      fg[0] += CppAD::pow(cte1, 2);
-      fg[0] += CppAD::pow(epsi1, 2);
+      fg[0] += 5*CppAD::pow(cte1, 2);
+      fg[0] += 200*CppAD::pow(epsi1, 2);
       fg[0] += 0.1*CppAD::pow(v1 - ref_v, 2);
-      //fg[0] += CppAD::pow(v1 - v0, 2);
+      //fg[0] += 50*CppAD::pow(v1 - v0, 2);
       // Squared delta and squared acceleration so vehicle doesn't turn or speed up too aggressively
       //fg[0] += CppAD::pow(delta, 2);
-      //fg[0] += CppAD::pow(a, 2);
+      fg[0] += 0.15*CppAD::pow(a, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
       // make control decisions consistent.
       if (t<N-1) {
         fg[0] += CppAD::pow(vars[a_start + t] - a, 2);
         // Penalize delta change heavily to combat overshooting
-        fg[0] += 200*CppAD::pow(vars[delta_start + t] - delta, 2);
+        fg[0] += 1000*CppAD::pow(vars[delta_start + t] - delta, 2);
       }
 
       // Rest of cost constraints, using vehicle model, so that this value of fg always equals 0.

@@ -96,8 +96,7 @@ int main() {
           double psi = j[1]["psi"];
           //double psi_unity = j[1]["psi_unity"];
           double v = j[1]["speed"];
-          double cur_throttle = j[1]["throttle"];
-          double cur_steer_angle = j[1]["steering_angle"];
+          double steer_angle = j[1]["steering_angle"];
           
           //transform waypoints from global to vehicle coordinates
           //the rotation has to be performed aroudn the origin, so the translation must occur first
@@ -110,26 +109,27 @@ int main() {
           vector<double> way_x_vals(15);
           vector<double> way_y_vals(15);
           // Fit polynomial to waypoints
-          auto coeffs_way = polyfit(next_x_vals, next_y_vals, 2);
+          auto coeffs = polyfit(next_x_vals, next_y_vals, 2);
           for (int i=0; i<15; ++i) {
             way_x_vals[i] = static_cast<double>((i+1)*5);
-            way_y_vals[i] = polyeval(coeffs_way, way_x_vals[i]);
+            way_y_vals[i] = polyeval(coeffs, way_x_vals[i]);
           }
       
           // Calculate cross-track and orientation erros. Vehicle coordinates are now [0,0]
-          double cte = polyeval(coeffs_way, 0.0);
-          double epsi = cur_steer_angle - atan(coeffs_way[1]);
+          double cte = polyeval(coeffs, 0.0);
+          double epsi = steer_angle - atan(coeffs[1]);
           cout << "CTE " << cte << endl;
           cout << "EPSI " << epsi << "\n" << endl;
           
           
           Eigen::VectorXd state(6);
-          state << 0.0, 0.0, cur_steer_angle, v, cte, epsi;
+          state << 0.0, 0.0, steer_angle, v, cte, epsi;
           vector<double> actuators;
-          mpc.Solve(state, coeffs_way);
+          mpc.Solve(state, coeffs);
           
           
           json msgJson;
+          
           msgJson["steering_angle"] = mpc.steer_angle;
           msgJson["throttle"] = mpc.throttle;
 
