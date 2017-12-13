@@ -39,9 +39,11 @@ class FG_eval {
   Eigen::VectorXd coeffs;
   // Velocity goal
   double ref_v;
-  FG_eval(Eigen::VectorXd coeffs, double ref_v) {
+  double cte_total;
+  FG_eval(Eigen::VectorXd coeffs, double ref_v, double cte_total) {
     this->coeffs = coeffs;
     this->ref_v = ref_v;
+    this->cte_total = cte_total;
   }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
@@ -60,7 +62,8 @@ class FG_eval {
     fg[0] += 1000*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
     fg[0] += 0.05*CppAD::pow(vars[v_start] - ref_v, 2);
-    
+    //total cte because car tends to drift (only do this once)
+    fg[0] += 10*N*CppAD::pow(cte_total, 2);
     // Initialize constraints. Add 1 to each of the starting indices because cost is at index 0.
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -97,7 +100,7 @@ class FG_eval {
       fg[0] += 1000*CppAD::pow(epsi1, 2);
       fg[0] += 0.05*CppAD::pow(v1 - ref_v, 2);
       // Squared delta CTE to combat oscillation
-      fg[0] += 200*CppAD::pow(cte1 - cte0, 2);
+      fg[0] += 500*CppAD::pow(cte1 - cte0, 2);
       // Squared acceleration so vehicle doesn't speed up too aggressively
       fg[0] += 0.1*CppAD::pow(a, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
@@ -122,7 +125,10 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC() {}
+MPC::MPC() {
+  cte_total = 0;
+  cnt = 0;
+}
 MPC::~MPC() {}
 
 void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
@@ -194,7 +200,7 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   constraints_upperbound[epsi_start] = epsi;
   
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs, ref_v);
+  FG_eval fg_eval(coeffs, ref_v, cte_total);
   
   // options for IPOPT solver
   std::string options;
@@ -206,7 +212,7 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   // if you uncomment both the computation time should go up in orders of
   // magnitude.
   options += "Sparse  true        forward\n";
-  options += "Sparse  true        reverse\n";
+  //options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
   options += "Numeric max_cpu_time          0.5\n";

@@ -74,7 +74,6 @@ int main() {
 
   // MPC is initialized here!
   MPC mpc;
-
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -119,10 +118,20 @@ int main() {
           double lag_x = 0.1*v*cos(steer_angle);
           double lag_y = 0.1*v*sin(steer_angle);
           double cte = polyeval(coeffs, lag_x) - lag_y;
+          // Calculate total CTE for mpc cost function.
+          // Keep count of timesteps to reset total CTE so it doesn't overcompensate for the many left turns on this track
+          mpc.cnt += 1;
+          if (mpc.cnt == 50) {
+            mpc.cte_total = 0;
+            mpc.cnt = 0;
+          }
+          else {mpc.cte_total += cte;}
           double epsi = steer_angle - atan(coeffs[1] + 2*coeffs[2]*lag_x);
+          cout << "CTE TOTAL at cnt " << mpc.cnt << "\t" << mpc.cte_total << endl;
           cout << "CTE " << cte << endl;
           cout << "EPSI " << epsi << "\n" << endl;
-          // reference velocity, based on CTE, so slows down on turns and when it veers from the waypoints
+          
+          // reference velocity for mpc cost function
           double ref_v = 50;
           
           Eigen::VectorXd state(6);
