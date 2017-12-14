@@ -10,8 +10,6 @@ class MPC {
  public:
   double steer_angle;
   double throttle;
-  double cte_total;
-  int cnt;
   
   vector<double> mpc_ptsx;
   vector<double> mpc_ptsy;

@@ -12,14 +12,8 @@
 // for convenience
 using json = nlohmann::json;
 
-// For converting back and forth between radians and degrees.
-constexpr double pi() { return M_PI; }
-double deg2rad(double x) { return x * pi() / 180; }
-double rad2deg(double x) { return x * 180 / pi(); }
-// For calculating Euclidean distance between two points
-inline double dist(double x1, double y1, double x2, double y2) {
-  return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-}
+// For converting miles per hour to meters per second
+double mph2mps(double x) { return x * 1609.34 / 3600.0; }
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -99,60 +93,55 @@ int main() {
           
           //transform waypoints from global to vehicle coordinates
           //the rotation has to be performed aroudn the origin, so the translation must occur first
+          // Vehicle coordinates are now [0,0]
           Eigen::VectorXd next_x_vals(ptsx.size());
           Eigen::VectorXd next_y_vals(ptsy.size());
           for (int i=0; i<ptsx.size(); ++i) {
             next_x_vals[i] = (cos(-1.0*psi) * (ptsx[i]-px)) - (sin(-1.0*psi) * (ptsy[i]-py));
             next_y_vals[i] = (sin(-1.0*psi) * (ptsx[i]-px)) + (cos(-1.0*psi) * (ptsy[i]-py));
           }
-          vector<double> way_x_vals(15);
-          vector<double> way_y_vals(15);
+          
           // Fit polynomial to waypoints
           auto coeffs = polyfit(next_x_vals, next_y_vals, 2);
-          for (int i=0; i<15; ++i) {
-            way_x_vals[i] = static_cast<double>((i+1)*5);
-            way_y_vals[i] = polyeval(coeffs, way_x_vals[i]);
-          }
       
-          // Calculate cross-track and orientation erros. Vehicle coordinates are now [0,0]
-          double lag_x = 0.1*v*cos(steer_angle);
-          double lag_y = 0.1*v*sin(steer_angle);
+          // Calculate cross-track and orientation erros.
+          // Also calculate new x and y coordinates, taking into account 100ms of lag (0.1s)
+          // Convert velocity to meters per sec
+          double v_mps = mph2mps(v);
+          double lag_x = 0.1*v_mps*cos(steer_angle);
+          double lag_y = 0.1*v_mps*sin(steer_angle);
           double cte = polyeval(coeffs, lag_x) - lag_y;
-          // Calculate total CTE for mpc cost function.
-          // Keep count of timesteps to reset total CTE so it doesn't overcompensate for the many left turns on this track
-          mpc.cnt += 1;
-          if (mpc.cnt == 50) {
-            mpc.cte_total = 0;
-            mpc.cnt = 0;
-          }
-          else {mpc.cte_total += cte;}
           double epsi = steer_angle - atan(coeffs[1] + 2*coeffs[2]*lag_x);
-          cout << "CTE TOTAL at cnt " << mpc.cnt << "\t" << mpc.cte_total << endl;
+
           cout << "CTE " << cte << endl;
-          cout << "EPSI " << epsi << "\n" << endl;
+          cout << "EPSI " << epsi << endl;
+          cout << "steer angle " << steer_angle << endl;
+          cout << endl;
           
-          // reference velocity for mpc cost function
-          double ref_v = 50;
+          // reference velocity for mpc cost function, in meters per sec
+          double ref_v = mph2mps(40);
           
           Eigen::VectorXd state(6);
-          state << lag_x, lag_y, steer_angle, v, cte, epsi;
+          state << lag_x, lag_y, steer_angle, v_mps, cte, epsi;
           vector<double> actuators;
           mpc.Solve(state, coeffs, ref_v);
           
           
           json msgJson;
-          
           msgJson["steering_angle"] = mpc.steer_angle;
           msgJson["throttle"] = mpc.throttle;
 
-          //Display the MPC predicted trajectory
-          // the points in the simulator are connected by a green line
+          //Display the MPC predicted trajectory with a green line
           msgJson["mpc_x"] = mpc.mpc_ptsx;
           msgJson["mpc_y"] = mpc.mpc_ptsy;
           
-          
-          // Display the waypoints/reference line
-          // the points in the simulator are connected by a yellow line
+          // Produce waypoints to show in simulator with a yellow line
+          vector<double> way_x_vals(15);
+          vector<double> way_y_vals(15);
+          for (int i=0; i<15; ++i) {
+            way_x_vals[i] = static_cast<double>((i+1)*5);
+            way_y_vals[i] = polyeval(coeffs, way_x_vals[i]);
+          }
           msgJson["next_x"] = way_x_vals;
           msgJson["next_y"] = way_y_vals;
 

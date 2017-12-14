@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 25;
-double dt = 0.05;
+size_t N = 15;
+double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -39,11 +39,9 @@ class FG_eval {
   Eigen::VectorXd coeffs;
   // Velocity goal
   double ref_v;
-  double cte_total;
-  FG_eval(Eigen::VectorXd coeffs, double ref_v, double cte_total) {
+  FG_eval(Eigen::VectorXd coeffs, double ref_v) {
     this->coeffs = coeffs;
     this->ref_v = ref_v;
-    this->cte_total = cte_total;
   }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
@@ -57,13 +55,12 @@ class FG_eval {
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
-    fg[0] += 10*CppAD::pow(vars[cte_start], 2);
+    fg[0] += 0.25*CppAD::pow(vars[cte_start], 2);
     // Squared heading error
-    fg[0] += 1000*CppAD::pow(vars[epsi_start], 2);
+    fg[0] += 5*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
-    fg[0] += 0.05*CppAD::pow(vars[v_start] - ref_v, 2);
-    //total cte because car tends to drift (only do this once)
-    fg[0] += 10*N*CppAD::pow(cte_total, 2);
+    fg[0] += 0.07*CppAD::pow(vars[v_start] - ref_v, 2);
+    
     // Initialize constraints. Add 1 to each of the starting indices because cost is at index 0.
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -96,19 +93,20 @@ class FG_eval {
       
       // Cost function
       // First the ones above for rest of timestamps.
-      fg[0] += 10*CppAD::pow(cte1, 2);
-      fg[0] += 1000*CppAD::pow(epsi1, 2);
-      fg[0] += 0.05*CppAD::pow(v1 - ref_v, 2);
+      fg[0] += 0.25*CppAD::pow(cte1, 2);
+      fg[0] += 5*CppAD::pow(epsi1, 2);
+      fg[0] += 0.07*CppAD::pow(v1 - ref_v, 2);
       // Squared delta CTE to combat oscillation
-      fg[0] += 500*CppAD::pow(cte1 - cte0, 2);
+      //fg[0] += 100*CppAD::pow(cte1 - cte0, 2);
       // Squared acceleration so vehicle doesn't speed up too aggressively
       fg[0] += 0.1*CppAD::pow(a, 2);
+      fg[0] += 5*CppAD::pow(delta, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
       // make control decisions consistent.
       if (t<N-1) {
         fg[0] += CppAD::pow(vars[a_start + t] - a, 2);
         // Penalize delta change heavily to combat overshooting
-        fg[0] += 1000*CppAD::pow(vars[delta_start + t] - delta, 2);
+        fg[0] += 500*CppAD::pow(vars[delta_start + t] - delta, 2);
       }
 
       // Rest of cost constraints, using vehicle model, so that this value of fg always equals 0.
@@ -126,8 +124,6 @@ class FG_eval {
 // MPC class definition implementation.
 //
 MPC::MPC() {
-  cte_total = 0;
-  cnt = 0;
 }
 MPC::~MPC() {}
 
@@ -166,10 +162,10 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
     vars_lowerbound[i] = -1.0e19;
     vars_upperbound[i] = 1.0e19;
   }
-  // Set lower and upper limits of delta (i.e., steering angle) to -1 and 1
+  // Set lower and upper limits of delta (i.e., steering angle) to -25 and 25 degrees (in radians)
   for (int i=delta_start; i<a_start; ++i) {
-    vars_lowerbound[i] = -1.0;
-    vars_upperbound[i] = 1.0;
+    vars_lowerbound[i] = -1.0;//0.43633231;
+    vars_upperbound[i] = 1.0;//0.43633231;
   }
   // Set lower and upper limits of acceleration (i.e., throttle) to -1 and 1
   for (int i=a_start; i<n_vars; ++i) {
@@ -200,7 +196,7 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   constraints_upperbound[epsi_start] = epsi;
   
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs, ref_v, cte_total);
+  FG_eval fg_eval(coeffs, ref_v);
   
   // options for IPOPT solver
   std::string options;
@@ -212,7 +208,7 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   // if you uncomment both the computation time should go up in orders of
   // magnitude.
   options += "Sparse  true        forward\n";
-  //options += "Sparse  true        reverse\n";
+  options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
   options += "Numeric max_cpu_time          0.5\n";
@@ -232,10 +228,12 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   // Cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
-
+  //std::cout << "In steer angle " << psi << endl;
+  //std::cout << "out steer angle " << solution.x[psi_start] << endl;
+  
   // Set current steer_angle and throttle
-  steer_angle = solution.x[delta_start+1];//0.3*solution.x[delta_start] + 0.7*solution.x[delta_start+1];
-  throttle = solution.x[a_start+1];//0.3*solution.x[a_start] + 0.7*solution.x[a_start+1];
+  steer_angle = solution.x[delta_start]; // / 0.436332;
+  throttle = solution.x[a_start];
   
   //clear old ones, then set x and y predictions to plot within simulator
   mpc_ptsx.clear();
