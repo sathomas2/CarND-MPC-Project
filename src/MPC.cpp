@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;
-double dt = 0.1;
+size_t N = 20;
+double dt = 0.05;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -33,6 +33,18 @@ size_t epsi_start = cte_start + N;
 size_t delta_start = epsi_start + N;
 size_t a_start = delta_start + N - 1;
 
+
+double k_epsi = 35;
+double k_depsi = 100.0;
+double k_cte = 0.15;
+double k_dcte = 2.0;
+double k_delta = 500;
+double k_ddelta = 400000;
+double k_v = 0.025;
+double k_a = 0.05;
+double k_da = 10.0;
+
+
 class FG_eval {
  public:
   // Fitted polynomial coefficients
@@ -55,11 +67,11 @@ class FG_eval {
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
-    fg[0] += 0.22*CppAD::pow(vars[cte_start], 2);
+    fg[0] += k_cte*CppAD::pow(vars[cte_start], 2);
     // Squared heading error
-    fg[0] += 13*CppAD::pow(vars[epsi_start], 2);
+    fg[0] += k_epsi*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
-    fg[0] += 0.025*CppAD::pow(vars[v_start] - ref_v, 2);
+    fg[0] += k_v*CppAD::pow(vars[v_start] - ref_v, 2);
     
     // Initialize constraints. Add 1 to each of the starting indices because cost is at index 0.
     fg[1 + x_start] = vars[x_start];
@@ -93,22 +105,22 @@ class FG_eval {
       
       // Cost function
       // First the ones above for rest of timestamps.
-      fg[0] += 0.22*CppAD::pow(cte1, 2);
-      fg[0] += 13*CppAD::pow(epsi1, 2);
-      fg[0] += 0.025*CppAD::pow(v1 - ref_v, 2);
+      fg[0] += k_cte*CppAD::pow(cte1, 2);
+      fg[0] += k_epsi*CppAD::pow(epsi1, 2);
+      fg[0] += k_v*CppAD::pow(v1 - ref_v, 2);
       // Squared delta CTE to combat oscillation
-      fg[0] += 0.5*CppAD::pow(cte1 - cte0, 2);
-      //fg[0] += 20*CppAD::pow(epsi1 - epsi0, 2);
+      fg[0] += k_dcte*CppAD::pow(cte1 - cte0, 2);
+      fg[0] += k_depsi*CppAD::pow(epsi1 - epsi0, 2);
 
       // Squared acceleration so vehicle doesn't speed up too aggressively
-      fg[0] += 0.05*CppAD::pow(a, 2);
-      fg[0] += 0.5*CppAD::pow(delta, 2);
+      fg[0] += k_a*CppAD::pow(a, 2);
+      fg[0] += k_delta*CppAD::pow(delta, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
       // make control decisions consistent.
       if (t<N-1) {
-        fg[0] += 0.25*CppAD::pow(vars[a_start + t] - a, 2);
+        fg[0] += k_da*CppAD::pow(vars[a_start + t] - a, 2);
         // Penalize delta change heavily to combat overshooting
-        fg[0] += 120*CppAD::pow(vars[delta_start + t] - delta, 2);
+        fg[0] += k_ddelta*CppAD::pow(vars[delta_start + t] - delta, 2);
       }
 
       // Constraints, using vehicle model, so that this value of fg always equals 0.
@@ -166,8 +178,8 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   }
   // Set lower and upper limits of delta (i.e., steering angle) to -25 and 25 degrees (in radians)
   for (int i=delta_start; i<a_start; ++i) {
-    vars_lowerbound[i] = -1.0;//0.43633231;
-    vars_upperbound[i] = 1.0;//0.43633231;
+    vars_lowerbound[i] = -0.43633231;
+    vars_upperbound[i] = 0.43633231;
   }
   // Set lower and upper limits of acceleration (i.e., throttle) to -1 and 1
   for (int i=a_start; i<n_vars; ++i) {
@@ -234,8 +246,8 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   //std::cout << "out steer angle " << solution.x[psi_start] << endl;
   
   // Set current steer_angle and throttle
-  steer_angle = solution.x[delta_start+1]; // / 0.436332;
-  throttle = solution.x[a_start+1];
+  steer_angle = solution.x[delta_start] / 0.43633231;
+  throttle = solution.x[a_start];
   
   //clear old ones, then set x and y predictions to plot within simulator
   mpc_ptsx.clear();
@@ -244,4 +256,49 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
     mpc_ptsx.push_back(solution.x[x_start + i]);
     mpc_ptsy.push_back(solution.x[y_start + i]);
   }
+  
+  double cost_cte = 0;
+  double cost_epsi = 0;
+  double cost_v= 0;
+  double cost_dcte = 0;
+  double cost_depsi = 0;
+  double cost_a = 0;
+  double cost_delta = 0;
+  double cost_da = 0;
+  double cost_ddelta = 0;
+  for (int i=0; i<N; ++i) {
+    cost_cte += k_cte*CppAD::pow(solution.x[cte_start + i], 2);
+    cost_epsi += k_epsi*CppAD::pow(solution.x[epsi_start + i], 2);
+    cost_v += k_v*CppAD::pow(solution.x[v_start + i] - ref_v, 2);
+    if (i < N-1) {
+      cost_dcte += k_dcte*CppAD::pow(solution.x[cte_start + i + 1] - solution.x[cte_start + i], 2);
+      cost_depsi += k_depsi*CppAD::pow(solution.x[epsi_start + i + 1] - solution.x[epsi_start + i], 2);
+      cost_a += k_a*CppAD::pow(solution.x[a_start + i], 2);
+      cost_delta += k_delta*CppAD::pow(solution.x[delta_start + i], 2);
+    }
+    if (i < N-2) {
+      cost_da += k_da*CppAD::pow(solution.x[a_start + i + 1] - solution.x[a_start + i], 2);
+      cost_ddelta += k_ddelta*CppAD::pow(solution.x[delta_start + i + 1] - solution.x[delta_start + i], 2);
+    }
+  }
+  double total_cost = cost_cte+cost_epsi+cost_v+cost_dcte+cost_depsi+cost_a+cost_delta+cost_da+cost_ddelta;
+  double per_cte = cost_cte/total_cost;
+  double per_epsi = cost_epsi/total_cost;
+  double per_v = cost_v/total_cost;
+  double per_dcte = cost_dcte/total_cost;
+  double per_depsi = cost_depsi/total_cost;
+  double per_a = cost_a/total_cost;
+  double per_delta = cost_delta/total_cost;
+  double per_da = cost_da/total_cost;
+  double per_ddelta = cost_ddelta/total_cost;
+  cout << "check COST " << total_cost << endl;
+  cout << "% epsi " << per_epsi << endl;
+  cout << "% depsi " << per_depsi << endl;
+  cout << "% cte " << per_cte << endl;
+  cout << "% dcte " << per_dcte << endl;
+  cout << "% delta " << per_delta << endl;
+  cout << "% ddelta " << per_ddelta << endl;
+  cout << "% v " << per_v << endl;
+  cout << "% a " << per_a << endl;
+  cout << "% da " << per_da << endl;
 }

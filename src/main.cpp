@@ -112,31 +112,26 @@ int main() {
           double lag_y = 0.1*v_mps*sin(steer_angle);
           double cte = polyeval(coeffs, lag_x) - lag_y;
           double epsi = steer_angle - atan(coeffs[1] + 2*coeffs[2]*lag_x);
-
-          cout << "CTE " << cte << endl;
-          cout << "EPSI " << epsi << endl;
-          cout << "steer angle " << steer_angle << endl;
-          cout << endl;
           
           // reference velocity for mpc cost function, in meters per sec
           double ref_v;
-          if (fabs(cte) > 1.30) {ref_v = mph2mps(45);}
-          else if (fabs(cte) > 1.20) {ref_v = mph2mps(50);}
-          else if (fabs(cte) > 1.10) {ref_v = mph2mps(55);}
-          else if (fabs(cte) > 1.00) {ref_v = mph2mps(60);}
-          else if (fabs(cte) > 0.90) {ref_v = mph2mps(65);}
-          else if (fabs(cte) > 0.80) {ref_v = mph2mps(70);}
-          else if (fabs(cte) > 0.70) {ref_v = mph2mps(75);}
-          else if (fabs(cte) > 0.60) {ref_v = mph2mps(80);}
-          else if (fabs(cte) > 0.50) {ref_v = mph2mps(85);}
-          else {ref_v = mph2mps(90);}
+          if (fabs(cte) > 1.00) {ref_v = mph2mps(60);}
+          //else if (fabs(cte) > 0.90) {ref_v = mph2mps(75);}
+          //else if (fabs(cte) > 0.80) {ref_v = mph2mps(80);}
+          //else if (fabs(cte) > 0.70) {ref_v = mph2mps(85);}
+          //else if (fabs(cte) > 0.60) {ref_v = mph2mps(90);}
+          //else if (fabs(cte) > 0.50) {ref_v = mph2mps(95);}
+          else {ref_v = mph2mps(80);}
           //ref_v = mph2mps(75);
           
           Eigen::VectorXd state(6);
           state << lag_x, lag_y, steer_angle, v_mps, cte, epsi;
           vector<double> actuators;
           mpc.Solve(state, coeffs, ref_v);
-          
+          cout << "CTE " << cte << endl;
+          cout << "EPSI " << epsi << endl;
+          //cout << "steer angle " << steer_angle << endl;
+          cout << endl;
           
           json msgJson;
           msgJson["steering_angle"] = mpc.steer_angle;
