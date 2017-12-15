@@ -6,7 +6,7 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 15;
+size_t N = 10;
 double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
@@ -55,11 +55,11 @@ class FG_eval {
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
-    fg[0] += 0.25*CppAD::pow(vars[cte_start], 2);
+    fg[0] += 0.22*CppAD::pow(vars[cte_start], 2);
     // Squared heading error
-    fg[0] += 5*CppAD::pow(vars[epsi_start], 2);
+    fg[0] += 13*CppAD::pow(vars[epsi_start], 2);
     // Squared difference of current velocity and reference velocity
-    fg[0] += 0.07*CppAD::pow(vars[v_start] - ref_v, 2);
+    fg[0] += 0.025*CppAD::pow(vars[v_start] - ref_v, 2);
     
     // Initialize constraints. Add 1 to each of the starting indices because cost is at index 0.
     fg[1 + x_start] = vars[x_start];
@@ -93,23 +93,25 @@ class FG_eval {
       
       // Cost function
       // First the ones above for rest of timestamps.
-      fg[0] += 0.25*CppAD::pow(cte1, 2);
-      fg[0] += 5*CppAD::pow(epsi1, 2);
-      fg[0] += 0.07*CppAD::pow(v1 - ref_v, 2);
+      fg[0] += 0.22*CppAD::pow(cte1, 2);
+      fg[0] += 13*CppAD::pow(epsi1, 2);
+      fg[0] += 0.025*CppAD::pow(v1 - ref_v, 2);
       // Squared delta CTE to combat oscillation
-      //fg[0] += 100*CppAD::pow(cte1 - cte0, 2);
+      fg[0] += 0.5*CppAD::pow(cte1 - cte0, 2);
+      //fg[0] += 20*CppAD::pow(epsi1 - epsi0, 2);
+
       // Squared acceleration so vehicle doesn't speed up too aggressively
-      fg[0] += 0.1*CppAD::pow(a, 2);
-      fg[0] += 5*CppAD::pow(delta, 2);
+      fg[0] += 0.05*CppAD::pow(a, 2);
+      fg[0] += 0.5*CppAD::pow(delta, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
       // make control decisions consistent.
       if (t<N-1) {
-        fg[0] += CppAD::pow(vars[a_start + t] - a, 2);
+        fg[0] += 0.25*CppAD::pow(vars[a_start + t] - a, 2);
         // Penalize delta change heavily to combat overshooting
-        fg[0] += 500*CppAD::pow(vars[delta_start + t] - delta, 2);
+        fg[0] += 120*CppAD::pow(vars[delta_start + t] - delta, 2);
       }
 
-      // Rest of cost constraints, using vehicle model, so that this value of fg always equals 0.
+      // Constraints, using vehicle model, so that this value of fg always equals 0.
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       fg[1 + psi_start + t] = psi1  - (psi0 - v0/Lf * delta * dt);
@@ -232,13 +234,13 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   //std::cout << "out steer angle " << solution.x[psi_start] << endl;
   
   // Set current steer_angle and throttle
-  steer_angle = solution.x[delta_start]; // / 0.436332;
-  throttle = solution.x[a_start];
+  steer_angle = solution.x[delta_start+1]; // / 0.436332;
+  throttle = solution.x[a_start+1];
   
   //clear old ones, then set x and y predictions to plot within simulator
   mpc_ptsx.clear();
   mpc_ptsy.clear();
-  for (int i=2; i<N-2; ++i) {
+  for (int i=1; i<N-1; ++i) {
     mpc_ptsx.push_back(solution.x[x_start + i]);
     mpc_ptsy.push_back(solution.x[y_start + i]);
   }
