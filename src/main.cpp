@@ -65,7 +65,6 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
 
 int main() {
   uWS::Hub h;
-
   // MPC is initialized here!
   MPC mpc;
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -87,7 +86,6 @@ int main() {
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
-          //double psi_unity = j[1]["psi_unity"];
           double v = j[1]["speed"];
           double steer_angle = j[1]["steering_angle"];
           
@@ -114,24 +112,19 @@ int main() {
           double epsi = steer_angle - atan(coeffs[1] + 2*coeffs[2]*lag_x);
           
           // reference velocity for mpc cost function, in meters per sec
+          // set by radius of curve of waypoints, so go slower around tighter curves
+          // and slows down in anticipation of turn
+          double rad_curve = pow(1 + pow(2*coeffs[2]*lag_x + coeffs[1], 2), 1.5) / fabs(2*coeffs[2]);
           double ref_v;
-          if (fabs(cte) > 1.00) {ref_v = mph2mps(60);}
-          //else if (fabs(cte) > 0.90) {ref_v = mph2mps(75);}
-          //else if (fabs(cte) > 0.80) {ref_v = mph2mps(80);}
-          //else if (fabs(cte) > 0.70) {ref_v = mph2mps(85);}
-          //else if (fabs(cte) > 0.60) {ref_v = mph2mps(90);}
-          //else if (fabs(cte) > 0.50) {ref_v = mph2mps(95);}
-          else {ref_v = mph2mps(80);}
-          //ref_v = mph2mps(75);
-          
+          if (rad_curve < 60) {ref_v = mph2mps(60);}
+          else if (rad_curve < 125) {ref_v = mph2mps(80);}
+          else {ref_v = mph2mps(100);}
+        
+          // state to feed MPC
           Eigen::VectorXd state(6);
           state << lag_x, lag_y, steer_angle, v_mps, cte, epsi;
           vector<double> actuators;
           mpc.Solve(state, coeffs, ref_v);
-          cout << "CTE " << cte << endl;
-          cout << "EPSI " << epsi << endl;
-          //cout << "steer angle " << steer_angle << endl;
-          cout << endl;
           
           json msgJson;
           msgJson["steering_angle"] = mpc.steer_angle;
@@ -152,16 +145,11 @@ int main() {
           msgJson["next_y"] = way_y_vals;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          //cout << msg << std::endl;
-          // Latency
-          // The purpose is to mimic real driving conditions where
+          cout << msg << std::endl;
+          
+          // Latency to mimic real driving conditions where
           // the car does actuate the commands instantly.
-          //
-          // Feel free to play around with this value but should be able to drive
-          // around the track with 100ms latency.
-          //
-          // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
-          // SUBMITTING.
+          // Car should be able to drive around the track with 100ms latency.
           this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }

@@ -5,13 +5,11 @@
 
 using CppAD::AD;
 
-// TODO: Set the timestep length and duration
+// Timestep length and duration
 size_t N = 20;
 double dt = 0.05;
 
-// This value assumes the model presented in the classroom is used.
-//
-// It was obtained by measuring the radius formed by running the vehicle in the
+// This value was obtained by measuring the radius formed by running the vehicle in the
 // simulator around in a circle with a constant steering angle and velocity on a
 // flat terrain.
 //
@@ -21,7 +19,7 @@ double dt = 0.05;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-// State and actuator variables are stored in a single vector, so to make life
+// State and actuator variables are stored in a single vector to make life
 // easier establish when each one starts
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -33,17 +31,16 @@ size_t epsi_start = cte_start + N;
 size_t delta_start = epsi_start + N;
 size_t a_start = delta_start + N - 1;
 
-
-double k_epsi = 35;
-double k_depsi = 100.0;
-double k_cte = 0.15;
-double k_dcte = 2.0;
-double k_delta = 500;
-double k_ddelta = 400000;
-double k_v = 0.025;
-double k_a = 0.05;
-double k_da = 10.0;
-
+// Set weights for each part of the cost function to make it easier to tune.
+double k_epsi = 32;
+double k_depsi = 25;
+double k_cte = 0.05;
+double k_dcte = 0.375;
+double k_delta = 350;
+double k_ddelta = 100000;
+double k_v = 0.25;
+double k_a = 1.0;
+double k_da = 50.0;
 
 class FG_eval {
  public:
@@ -58,12 +55,9 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
-    // TODO: implement MPC
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
-    // NOTE: You'll probably go back and forth between this function and
-    // the Solver function below.
     //
-    // Cost is stored at 'fg[0]' and here I'll store some of the cost here at timestamp t = 0 before the loop.
+    // Cost is stored at 'fg[0]' and here I'll store some of the cost here at timestamp t=0.
     // Remainder of cost will be added in loop below.
     fg[0] = 0;
     // Squared cross-track error
@@ -108,11 +102,10 @@ class FG_eval {
       fg[0] += k_cte*CppAD::pow(cte1, 2);
       fg[0] += k_epsi*CppAD::pow(epsi1, 2);
       fg[0] += k_v*CppAD::pow(v1 - ref_v, 2);
-      // Squared delta CTE to combat oscillation
+      // Squared delta cte and delta epsi to combat oscillation
       fg[0] += k_dcte*CppAD::pow(cte1 - cte0, 2);
       fg[0] += k_depsi*CppAD::pow(epsi1 - epsi0, 2);
-
-      // Squared acceleration so vehicle doesn't speed up too aggressively
+      // Squared acceleration and delta so vehicle doesn't speed up or turn too aggressively
       fg[0] += k_a*CppAD::pow(a, 2);
       fg[0] += k_delta*CppAD::pow(delta, 2);
       // Same idea as above but squared difference between current and previous timestamp to help
@@ -181,9 +174,10 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
     vars_lowerbound[i] = -0.43633231;
     vars_upperbound[i] = 0.43633231;
   }
-  // Set lower and upper limits of acceleration (i.e., throttle) to -1 and 1
+  // Set lower and upper limits of acceleration (i.e., throttle) to -0.1 (no need to brake
+  // a lot on this track) and 1
   for (int i=a_start; i<n_vars; ++i) {
-    vars_lowerbound[i] = -1.0;
+    vars_lowerbound[i] = -0.1;
     vars_upperbound[i] = 1.0;
   }
   
@@ -217,19 +211,13 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   // Uncomment this if you'd like more print information
   options += "Integer print_level  0\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
-  // of sparse routines, this makes the computation MUCH FASTER. If you
-  // can uncomment 1 of these and see if it makes a difference or not but
-  // if you uncomment both the computation time should go up in orders of
-  // magnitude.
+  // of sparse routines, this makes the computation MUCH FASTER.
   options += "Sparse  true        forward\n";
   options += "Sparse  true        reverse\n";
-  // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
-  // Change this as you see fit.
+  // Set the solver to have a maximum time limit of 0.5 seconds.
   options += "Numeric max_cpu_time          0.5\n";
-
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
-
   // solve the problem
   CppAD::ipopt::solve<Dvector, FG_eval>(
       options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
@@ -242,10 +230,8 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
   // Cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
-  //std::cout << "In steer angle " << psi << endl;
-  //std::cout << "out steer angle " << solution.x[psi_start] << endl;
   
-  // Set current steer_angle and throttle
+  // Set current steer_angle (divide by 25 degrees in radians so between [-1,1] and throttle
   steer_angle = solution.x[delta_start] / 0.43633231;
   throttle = solution.x[a_start];
   
@@ -257,48 +243,50 @@ void MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs,  double ref_v) {
     mpc_ptsy.push_back(solution.x[y_start + i]);
   }
   
-  double cost_cte = 0;
-  double cost_epsi = 0;
-  double cost_v= 0;
-  double cost_dcte = 0;
-  double cost_depsi = 0;
-  double cost_a = 0;
-  double cost_delta = 0;
-  double cost_da = 0;
-  double cost_ddelta = 0;
-  for (int i=0; i<N; ++i) {
-    cost_cte += k_cte*CppAD::pow(solution.x[cte_start + i], 2);
-    cost_epsi += k_epsi*CppAD::pow(solution.x[epsi_start + i], 2);
-    cost_v += k_v*CppAD::pow(solution.x[v_start + i] - ref_v, 2);
-    if (i < N-1) {
-      cost_dcte += k_dcte*CppAD::pow(solution.x[cte_start + i + 1] - solution.x[cte_start + i], 2);
-      cost_depsi += k_depsi*CppAD::pow(solution.x[epsi_start + i + 1] - solution.x[epsi_start + i], 2);
-      cost_a += k_a*CppAD::pow(solution.x[a_start + i], 2);
-      cost_delta += k_delta*CppAD::pow(solution.x[delta_start + i], 2);
-    }
-    if (i < N-2) {
-      cost_da += k_da*CppAD::pow(solution.x[a_start + i + 1] - solution.x[a_start + i], 2);
-      cost_ddelta += k_ddelta*CppAD::pow(solution.x[delta_start + i + 1] - solution.x[delta_start + i], 2);
-    }
-  }
-  double total_cost = cost_cte+cost_epsi+cost_v+cost_dcte+cost_depsi+cost_a+cost_delta+cost_da+cost_ddelta;
-  double per_cte = cost_cte/total_cost;
-  double per_epsi = cost_epsi/total_cost;
-  double per_v = cost_v/total_cost;
-  double per_dcte = cost_dcte/total_cost;
-  double per_depsi = cost_depsi/total_cost;
-  double per_a = cost_a/total_cost;
-  double per_delta = cost_delta/total_cost;
-  double per_da = cost_da/total_cost;
-  double per_ddelta = cost_ddelta/total_cost;
-  cout << "check COST " << total_cost << endl;
-  cout << "% epsi " << per_epsi << endl;
-  cout << "% depsi " << per_depsi << endl;
-  cout << "% cte " << per_cte << endl;
-  cout << "% dcte " << per_dcte << endl;
-  cout << "% delta " << per_delta << endl;
-  cout << "% ddelta " << per_ddelta << endl;
-  cout << "% v " << per_v << endl;
-  cout << "% a " << per_a << endl;
-  cout << "% da " << per_da << endl;
+  // The below helps to see how different parts of the cost function affect total cost.
+  // Can uncomment to help during tuning.
+  //double cost_cte = 0;
+  //double cost_epsi = 0;
+  //double cost_v= 0;
+  //double cost_dcte = 0;
+  //double cost_depsi = 0;
+  //double cost_a = 0;
+  //double cost_delta = 0;
+  //double cost_da = 0;
+  //double cost_ddelta = 0;
+  //for (int i=0; i<N; ++i) {
+    //cost_cte += k_cte*CppAD::pow(solution.x[cte_start + i], 2);
+    //cost_epsi += k_epsi*CppAD::pow(solution.x[epsi_start + i], 2);
+    //cost_v += k_v*CppAD::pow(solution.x[v_start + i] - ref_v, 2);
+    //if (i < N-1) {
+      //cost_dcte += k_dcte*CppAD::pow(solution.x[cte_start + i + 1] - solution.x[cte_start + i], 2);
+      //cost_depsi += k_depsi*CppAD::pow(solution.x[epsi_start + i + 1] - solution.x[epsi_start + i], 2);
+      //cost_a += k_a*CppAD::pow(solution.x[a_start + i], 2);
+      //cost_delta += k_delta*CppAD::pow(solution.x[delta_start + i], 2);
+    //}
+    //if (i < N-2) {
+      //cost_da += k_da*CppAD::pow(solution.x[a_start + i + 1] - solution.x[a_start + i], 2);
+      //cost_ddelta += k_ddelta*CppAD::pow(solution.x[delta_start + i + 1] - solution.x[delta_start + i], 2);
+    //}
+  //}
+  //double total_cost = cost_cte+cost_epsi+cost_v+cost_dcte+cost_depsi+cost_a+cost_delta+cost_da+cost_ddelta;
+  //double per_cte = cost_cte/total_cost;
+  //double per_epsi = cost_epsi/total_cost;
+  //double per_v = cost_v/total_cost;
+  //double per_dcte = cost_dcte/total_cost;
+  //double per_depsi = cost_depsi/total_cost;
+  //double per_a = cost_a/total_cost;
+  //double per_delta = cost_delta/total_cost;
+  //double per_da = cost_da/total_cost;
+  //double per_ddelta = cost_ddelta/total_cost;
+  //cout << "check COST " << total_cost << endl;
+  //cout << "% epsi " << per_epsi << endl;
+  //cout << "% depsi " << per_depsi << endl;
+  //cout << "% cte " << per_cte << endl;
+  //cout << "% dcte " << per_dcte << endl;
+  //cout << "% delta " << per_delta << endl;
+  //cout << "% ddelta " << per_ddelta << endl;
+  //cout << "% v " << per_v << endl;
+  //cout << "% a " << per_a << endl;
+  //cout << "% da " << per_da << endl;
 }

@@ -8,9 +8,11 @@ using namespace std;
 
 class MPC {
  public:
+  // Actuators
   double steer_angle;
   double throttle;
   
+  // Vectors of predicted route coordinates to show in simulator 
   vector<double> mpc_ptsx;
   vector<double> mpc_ptsy;
   
