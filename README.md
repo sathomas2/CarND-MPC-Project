@@ -132,5 +132,4 @@ With latency, the car travels between 50-90mph. Click on the picture below to ch
 </a>
  <p></p>
 
-Without latency, the car gets up to 100mph, But for this to work the reference velocity code in main.cpp and the cost weights in MPC.cpp need to be altered. Click on the picture at the top of this README to see the car hit 100mph!
-
+Without latency, the car gets up to 100mph, but for this to work the reference velocity code in main.cpp and the cost weights in MPC.cpp need to be altered. Click on the picture at the top of this README to see the car hit 100mph!
