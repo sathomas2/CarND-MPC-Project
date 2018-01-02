@@ -102,7 +102,7 @@ The CTE update is the CTE plus the change in error caused by the car's motion.
  <p></p>
 where f is the second-order polynomial fitted to the waypoints.
 
-The EPSI update is the EPSI plus the change in error caused by the car's motion.
+The EPSI update is the EPSI minus the change in error caused by the car's motion.
  <figure>
   <img src="readme_images/espit1.png"/>
 </figure>
