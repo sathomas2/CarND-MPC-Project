@@ -7,7 +7,7 @@
  <p></p>
 
 ### Overview
-In a [previous repository](https://github.com/sathomas2/CarND-PID-Control-Project), I implemented a proportional-integral-derivative (PID) controller 
+In a [previous repository](https://github.com/sathomas2/CarND-PID-Control-Project), I implemented a proportional-integral-derivative (PID) controller to navigate the lake track in Udacity's self-driving car simulator. Now I will up my game and implement a model predictive controller (MPC) on the same track.
 
 The contents of this repository include:
 ```
