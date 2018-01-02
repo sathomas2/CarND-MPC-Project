@@ -71,7 +71,7 @@ EPSI is the difference between the steering angle and the desired steering angle
  <p></p>
  
 ### Global Kinematic Model
-Given a car's current state -- i.e., its position (x and y), velocity (v), heading angle (psi), CTE, and EPSI at timestep t -- I need a model that can predict its next state at timestep t+1 and what control inputs I can provide to alter its state. The control inputs of a car are its steering angle (delta) and throttle (a), assuming that a negative a implies braking. For my MPC controller, I use a global kinematic model, which simplifies the problem by ignoring tire forces, gravity, and mass. With trigonemtry and physics, I can derive the following equations:
+Given a car's current state -- i.e., its position (x and y), velocity (v), heading angle (psi), CTE, and EPSI at timestep t -- I need a model that can predict its next state at timestep t+1 and what control inputs I can provide to alter its state. The control inputs of a car are its steering angle (delta) and throttle (a), assuming that a negative a implies braking. For my MPC, I use a global kinematic model, which simplifies the problem by ignoring tire forces, gravity, and mass. With trigonemtry and physics, I can derive the following equations:
 <figure>
   <img src="readme_images/x.png"/>
 </figure>
