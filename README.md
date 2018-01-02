@@ -126,7 +126,7 @@ After each JSON object is received, to calculate the control inputs sent to the 
 ### Results
 With latency, the car travels between 50-90mph. Click on the picture below to check it out. 
 <figure>
-  <a href="https://www.youtube.com/watch?v=psoxAdS4UHk&feature=youtu.be">
+  <a href="https://www.youtube.com/watch?v=wU5nvdat0IA&t=1s">
   <img src="readme_images/withlag.png"/>
 </figure>
 </a>
