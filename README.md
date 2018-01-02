@@ -64,7 +64,7 @@ where psi is now the steering angle (i.e., the heading angle in vehicle coordina
 ### Calculating the Errors (CTE and EPSI)
 The CTE is the difference between the y position of the polynomial fitted to the waypoints at x_latency and y_latency (main.cpp line 111).
 
-EPSI is the difference between the steering angle and the desired steering angle (main.cpp line 112). The desired orientation is the arctangent of the derivative of the fitted polynomial at x_latency, or:
+EPSI is the difference between the steering angle and the desired steering angle (main.cpp line 112). The desired steering angle is the arctangent of the derivative of the fitted polynomial at x_latency, or:
  <figure>
   <img src="readme_images/psidesired.png"/>
 </figure>
