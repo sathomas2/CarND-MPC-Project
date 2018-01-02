@@ -87,7 +87,7 @@ In the simulator, the throttle, which determines the car's acceleration, must be
 </figure>
  <p></p>
  
-Udating psi is a bit tricky. Since I always assume the origin of the coordinate system is the car's position at timestep 0, the initial psi is the car's steering angle. As the car's state evolves through time, the origin cannot change or else the above equations would be meaningless. In other words, to derive psi at t+1, I cannot simply use the new steering angle. Essentially, I add a multiplicative factor of the new steering angle or delta to the previous psi.
+Udating psi is a bit tricky. Since I always assume the origin of the coordinate system is the car's position at timestep 0, the initial psi is the car's steering angle. As the car's state evolves through time, the origin cannot change or else the above equations would be meaningless. In other words, to derive psi at t+1, I cannot simply use the new steering angle. Essentially, I subtract a multiplicative factor of the new steering angle or delta to the previous psi.
  <figure>
   <img src="readme_images/psi.png"/>
 </figure>
